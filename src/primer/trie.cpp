@@ -105,7 +105,7 @@ auto Trie::Remove(std::string_view key) const -> Trie {
     node_item = std::move(cur);
   }
 
-  if (node_item->children_.empty()) {
+  if (node_item->children_.empty() && !node_item->is_value_node_) {
     return {};
   }
 

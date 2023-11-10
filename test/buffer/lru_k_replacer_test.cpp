@@ -5,6 +5,7 @@
 #include "buffer/lru_k_replacer.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <memory>
 #include <random>
@@ -12,12 +13,16 @@
 #include <thread>  // NOLINT
 #include <vector>
 
+#include "common/config.h"
 #include "gtest/gtest.h"
 
 namespace bustub {
 
-TEST(LRUKReplacerTest, DISABLED_SampleTest) {
+TEST(LRUKReplacerTest, SampleTest) {
   LRUKReplacer lru_replacer(7, 2);
+
+  // Scenario: Initially, the capacity of lru_replacer is 0
+  ASSERT_EQ(0, lru_replacer.Size());
 
   // Scenario: add six elements to the replacer. We have [1,2,3,4,5]. Frame 6 is non-evictable.
   lru_replacer.RecordAccess(1);
@@ -36,6 +41,7 @@ TEST(LRUKReplacerTest, DISABLED_SampleTest) {
 
   // Scenario: Insert access history for frame 1. Now frame 1 has two access histories.
   // All other frames have max backward k-dist. The order of eviction is [2,3,4,5,1].
+  // [2,3,4,5] [1]
   lru_replacer.RecordAccess(1);
 
   // Scenario: Evict three pages from the replacer. Elements with max k-distance should be popped
@@ -50,7 +56,9 @@ TEST(LRUKReplacerTest, DISABLED_SampleTest) {
   ASSERT_EQ(2, lru_replacer.Size());
 
   // Scenario: Now replacer has frames [5,1].
+  // [5] [1]
   // Insert new frames 3, 4, and update access history for 5. We should end with [3,1,5,4]
+  // [3,5] [1,4]
   lru_replacer.RecordAccess(3);
   lru_replacer.RecordAccess(4);
   lru_replacer.RecordAccess(5);
@@ -65,6 +73,7 @@ TEST(LRUKReplacerTest, DISABLED_SampleTest) {
   ASSERT_EQ(3, lru_replacer.Size());
 
   // Set 6 to be evictable. 6 Should be evicted next since it has max backward k-dist.
+  // [6,5] [1,4]
   lru_replacer.SetEvictable(6, true);
   ASSERT_EQ(4, lru_replacer.Size());
   lru_replacer.Evict(&value);
@@ -72,6 +81,7 @@ TEST(LRUKReplacerTest, DISABLED_SampleTest) {
   ASSERT_EQ(3, lru_replacer.Size());
 
   // Now we have [1,5,4]. Continue looking for victims.
+  // [5] [1,4]
   lru_replacer.SetEvictable(1, false);
   ASSERT_EQ(2, lru_replacer.Size());
   ASSERT_EQ(true, lru_replacer.Evict(&value));
@@ -79,6 +89,7 @@ TEST(LRUKReplacerTest, DISABLED_SampleTest) {
   ASSERT_EQ(1, lru_replacer.Size());
 
   // Update access history for 1. Now we have [4,1]. Next victim is 4.
+  // [4,1]
   lru_replacer.RecordAccess(1);
   lru_replacer.RecordAccess(1);
   lru_replacer.SetEvictable(1, true);
@@ -93,6 +104,40 @@ TEST(LRUKReplacerTest, DISABLED_SampleTest) {
 
   // This operation should not modify size
   ASSERT_EQ(false, lru_replacer.Evict(&value));
+  ASSERT_EQ(0, lru_replacer.Size());
+}
+
+TEST(LRUKReplacerTest, CapacityTest) {
+  LRUKReplacer lru_replacer(7, 2);
+
+  // 容量为空
+  frame_id_t frame_id;
+  ASSERT_EQ(false, lru_replacer.Evict(&frame_id));
+  lru_replacer.SetEvictable(frame_id, false);
+
+  ASSERT_EQ(0, lru_replacer.Size());
+  lru_replacer.SetEvictable(frame_id, true);
+  ASSERT_EQ(0, lru_replacer.Size());
+
+  // 容量为1
+  lru_replacer.RecordAccess(0);
+
+  ASSERT_EQ(0, lru_replacer.Size());
+  lru_replacer.SetEvictable(0, true);
+  ASSERT_EQ(1, lru_replacer.Size());
+
+  ASSERT_EQ(true, lru_replacer.Evict(&frame_id));
+  ASSERT_EQ(0, frame_id);
+  ASSERT_EQ(0, lru_replacer.Size());
+
+  for (size_t i = 0; i < 2; ++i) {
+    lru_replacer.RecordAccess(0);
+  }
+
+  ASSERT_EQ(0, lru_replacer.Size());
+  lru_replacer.SetEvictable(frame_id, true);
+  ASSERT_EQ(1, lru_replacer.Size());
+  ASSERT_EQ(true, lru_replacer.Evict(&frame_id));
   ASSERT_EQ(0, lru_replacer.Size());
 }
 }  // namespace bustub
